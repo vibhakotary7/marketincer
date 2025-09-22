@@ -148,13 +148,13 @@ class ContentAiService
       # Try both chat (`message.content`) and completion (`text`) style
       ai_text = result.dig("choices", 0, "message", "content") ||
                 result.dig("choices", 0, "text")
-      ai_text&.strip
+      return ai_text&.strip
     else
-      puts "OpenRouter API error: #{response.code} - #{response.body}"
+      Rails.logger.error "OpenRouter API error: #{response.code} - #{response.body}"
       nil
     end
   rescue => e
-    puts "OpenRouter API call failed: #{e.message}"
+    Rails.logger.error "OpenRouter API call failed: #{e.message}"
     nil
   end
 
