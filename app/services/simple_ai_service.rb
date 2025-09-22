@@ -4,7 +4,7 @@ class SimpleAiService
   # Configuration for different AI services
   GROQ_API_KEY = "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"
   ANTHROPIC_API_KEY = ENV['ANTHROPIC_API_KEY']
-  OPENROUTER_API_KEY = ENV['OPENROUTER_API_KEY']
+  OPENROUTER_API_KEY = "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"
 
   
   def initialize(description)
