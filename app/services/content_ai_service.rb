@@ -5,6 +5,7 @@ class ContentAiService
   # Configuration for different AI services
   GROQ_API_KEY = "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"
   ANTHROPIC_API_KEY = ENV['ANTHROPIC_API_KEY']
+  OPENROUTER_API_KEY = ENV['OPENROUTER_API_KEY']
   
   def initialize(description)
     @description = description
@@ -15,7 +16,7 @@ class ContentAiService
     Rails.logger.info "Content AI generation started for: #{@description}"
     
     # Try different AI services in order of preference
-    ai_response = try_groq_api || try_anthropic_api
+    ai_response = try_groq_api || try_anthropic_api || try_openrouter_api
     if ai_response.present?
       Rails.logger.info "Content AI generation successful: #{ai_response.length} chars"
       return ai_response
@@ -118,6 +119,45 @@ class ContentAiService
       return nil
     end
   end
+
+  def try_openrouter_api
+     return nil unless OPENROUTER_API_KEY && !OPENROUTER_API_KEY.empty?
+
+    uri = URI("https://openrouter.ai/api/v1/chat/completions")
+    http = Net::HTTP.new(uri.host, uri.port)
+    http.use_ssl = true
+    http.read_timeout = @timeout
+
+    request = Net::HTTP::Post.new(uri)
+    request["Authorization"] = "Bearer #{OPENROUTER_API_KEY}"
+    request["Content-Type"] = "application/json"
+
+    request.body = {
+      model: "mistralai/mistral-7b-instruct:free",
+      messages: [
+        { role: "user", content: build_content_prompt(@description) }
+      ],
+      temperature: 0.8,
+      max_tokens: 500
+    }.to_json
+
+    response = http.request(request)
+
+    if response.code == "200"
+      result = JSON.parse(response.body)
+      # Try both chat (`message.content`) and completion (`text`) style
+      ai_text = result.dig("choices", 0, "message", "content") ||
+                result.dig("choices", 0, "text")
+      ai_text&.strip
+    else
+      puts "OpenRouter API error: #{response.code} - #{response.body}"
+      nil
+    end
+  rescue => e
+    puts "OpenRouter API call failed: #{e.message}"
+    nil
+  end
+
 
   def build_content_prompt(description)
     "Create engaging social media content based on this description: #{description}

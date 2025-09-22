@@ -1,10 +1,11 @@
 class SimpleAiService
   require 'net/http'
   require 'json'
-  
   # Configuration for different AI services
   GROQ_API_KEY = "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"
   ANTHROPIC_API_KEY = ENV['ANTHROPIC_API_KEY']
+  OPENROUTER_API_KEY = ENV['OPENROUTER_API_KEY']
+
   
   def initialize(description)
     @description = description
@@ -15,7 +16,7 @@ class SimpleAiService
     Rails.logger.info "Simple AI generation started for: #{@description}"
     
     # Try different AI services in order of preference
-    ai_response = try_groq_api || try_anthropic_api
+    ai_response = try_groq_api || try_anthropic_api || try_openrouter_api
     if ai_response.present?
       Rails.logger.info "Simple AI generation successful: #{ai_response.length} chars"
       return ai_response
@@ -115,6 +116,47 @@ class SimpleAiService
       return nil
     rescue => e
       Rails.logger.error "Anthropic API call failed: #{e.message}"
+      return nil
+    end
+  end
+
+  def try_openrouter_api
+    return nil unless OPENROUTER_API_KEY && !OPENROUTER_API_KEY.empty?
+
+    begin
+      Rails.logger.info "Trying OpenRouter API"
+
+      uri = URI("https://openrouter.ai/api/v1/chat/completions")
+      http = Net::HTTP.new(uri.host, uri.port)
+      http.use_ssl = true
+      http.read_timeout = @timeout
+
+      request = Net::HTTP::Post.new(uri)
+      request["Authorization"] = "Bearer #{OPENROUTER_API_KEY}"
+      request["Content-Type"] = "application/json"
+
+      request.body = {
+        model: "mistralai/mistral-7b-instruct:free",
+        messages: [
+          { role: "user", content: build_contract_prompt(@description) }
+        ],
+        temperature: 0.8,
+        max_tokens: 500
+      }.to_json
+
+      response = http.request(request)
+
+      if response.code == "200"
+        result = JSON.parse(response.body)
+        ai_text = result.dig("choices", 0, "message", "content") ||
+                  result.dig("choices", 0, "text")
+        return ai_text&.strip
+      else
+        Rails.logger.error "OpenRouter API error: #{response.code} - #{response.body}"
+        return nil
+      end
+    rescue => e
+      Rails.logger.error "OpenRouter API call failed: #{e.message}"
       return nil
     end
   end
